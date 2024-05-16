@@ -7,17 +7,12 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 import requests
 import os
-import tkinter as tk
+from datetime import datetime
 from tkinter import filedialog
 
-
-wb_comment = openpyxl.Workbook()
-cookies_object_list = []
-
-def loadCookiesFile():
-    root = tk.Tk()
-    root.withdraw()
+def load_cookies_file():
     file_path = filedialog.askopenfilename(title="Chọn file cookies.xlsx")
+    cookies_object_list = []
     try:
         wb_cookie = openpyxl.load_workbook(file_path)
         ws = wb_cookie.active
@@ -25,9 +20,12 @@ def loadCookiesFile():
             cookies_object_list.append({"name": row[0].value, "value": row[1].value})
     except FileNotFoundError:
         print("Error: File 'cookies.xlsx' not found.")
+
+    # parse cookies to object
     return cookies_object_list
 
-def crawlAndSave(cookies_object_list):
+def crawl_comment(cookies_object_list):
+    wb_comment = openpyxl.Workbook()
     ##
     sheet_default = wb_comment.active
     sheet_default.cell(row=1, column=1).value = "Tên"
@@ -37,7 +35,9 @@ def crawlAndSave(cookies_object_list):
     ##
     driver = webdriver.Chrome()
     driver.get("http://www.facebook.com/")
-    groupName = {}
+    
+    #
+    group_facebook_name = {}
 
     for cookies_object in cookies_object_list:
         cookies = []
@@ -54,7 +54,6 @@ def crawlAndSave(cookies_object_list):
         # add cookie to browser
         for cookie in cookies:
             driver.add_cookie(cookie)
-        
 
         # check cookie isvalid
         try:
@@ -68,7 +67,6 @@ def crawlAndSave(cookies_object_list):
             continue
 
         # check date time
-        from datetime import datetime
         try :
             dataComment = driver.find_element(By.XPATH,"/html/body/div[1]/div/div[1]/div/div[3]/div/div/div[1]/div[1]/div[2]/div/div/div/div/div/div[4]/div[1]/div/div/div/div/div/h2/span/span")
             dmy = dataComment.text.split(" ")
@@ -80,7 +78,6 @@ def crawlAndSave(cookies_object_list):
                 continue
         except:
             continue
-
 
         while True:
             time.sleep(2)
@@ -98,20 +95,25 @@ def crawlAndSave(cookies_object_list):
             contents.append(i.text.split("\n")[1])
             link_list.append(i.get_attribute("href").split("/"))
                 
-        for i in range(len(contents)):
+        for i in range(len(link_list)):
+        
             location = link_list[i][3]
 
             if link_list[i][3] == "groups":
-                if link_list[i][4] not in groupName:
+                if link_list[i][4] not in group_facebook_name:
                     responseGroupUrl = requests.get(f"https://www.facebook.com/groups/{link_list[i][4]}")
-                    groupName[link_list[i][4]] = responseGroupUrl.text.split('<title>')[1].split("</title>")[0]
-                    print(groupName[link_list[i][4]])
-                location = groupName[link_list[i][4]]                    
-
+                    group_facebook_name[link_list[i][4]] = responseGroupUrl.text.split('<title>')[1].split("</title>")[0]
+                    print(group_facebook_name[link_list[i][4]])
+                
+                location = group_facebook_name[link_list[i][4]]                    
+         
+            # statistics
             if location not in comments:
                 comments[location] = {}
+         
             if contents[i] not in comments[location]:
                 comments[location][contents[i]] = 0
+         
             comments[location][contents[i]] += 1
 
         sheet_default.cell(row=row_sheet_default_index, column=1).value = cookies_object["name"]
@@ -122,6 +124,7 @@ def crawlAndSave(cookies_object_list):
         ws.cell(row=1, column=1).value = "Nơi comment"
         ws.cell(row=1, column=2).value = "Nội dung"
         ws.cell(row=1, column=3).value = "Số lượng"
+
         row_index = 2
         for location, content_dict in comments.items():
             ws.cell(row=row_index, column=1).value = location
@@ -129,21 +132,24 @@ def crawlAndSave(cookies_object_list):
                 ws.cell(row=row_index, column=2).value = content
                 ws.cell(row=row_index, column=3).value = count
                 row_index += 1  # Move to the next row for the next comment
-    
+                
     driver.close()
-    root = tk.Tk()
-    root.withdraw()
-    # Hiển thị hộp thoại lưu file và lưu đường dẫn của file đã chọn
+    return wb_comment
+
+def save_wbComment_file(wb_comment):
     file_path = filedialog.asksaveasfilename(defaultextension=".xlsx", initialfile="comments.xlsx", filetypes=[("Excel file", "*.xlsx")])
-    # Kiểm tra xem người dùng đã chọn một file hay không
     if file_path:
-        # Viết nội dung vào file đã chọn
         try:
             wb_comment.save(os.path.join(file_path))
             print("Đã lưu file thành công!")
         except Exception as e:
             print("Đã xảy ra lỗi:", e)
 
-loadCookiesFile()
-if (cookies_object_list):
-    crawlAndSave(cookies_object_list)
+if __name__ == "__main__":    
+    # 
+    cookies_object_list = load_cookies_file()
+    
+    #
+    if (cookies_object_list):
+        wb_comment = crawl_comment(cookies_object_list)
+        save_wbComment_file(wb_comment)
