@@ -7,21 +7,25 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 import requests
 import os
+import tkinter as tk
+from tkinter import filedialog
+
 
 wb_comment = openpyxl.Workbook()
 cookies_object_list = []
 
-def loadCookiesFile(filename):
+def loadCookiesFile():
+    root = tk.Tk()
+    root.withdraw()
+    file_path = filedialog.askopenfilename(title="Chọn file cookies.xlsx")
     try:
-        wb_cookie = openpyxl.load_workbook(filename)
+        wb_cookie = openpyxl.load_workbook(file_path)
         ws = wb_cookie.active
         for row in ws.iter_rows():
             cookies_object_list.append({"name": row[0].value, "value": row[1].value})
     except FileNotFoundError:
         print("Error: File 'cookies.xlsx' not found.")
     return cookies_object_list
-
-
 
 def crawlAndSave(cookies_object_list):
     ##
@@ -31,7 +35,7 @@ def crawlAndSave(cookies_object_list):
     row_sheet_default_index = 2
     
     ##
-    driver = webdriver.Firefox()
+    driver = webdriver.Chrome()
     driver.get("http://www.facebook.com/")
     groupName = {}
 
@@ -126,9 +130,20 @@ def crawlAndSave(cookies_object_list):
                 ws.cell(row=row_index, column=3).value = count
                 row_index += 1  # Move to the next row for the next comment
     
-    wb_comment.save(os.path.join(os.path.dirname(os.path.abspath(__file__)),"comments.xlsx"))
-    print("Comments saved to comments.xlsx")
     driver.close()
+    root = tk.Tk()
+    root.withdraw()
+    # Hiển thị hộp thoại lưu file và lưu đường dẫn của file đã chọn
+    file_path = filedialog.asksaveasfilename(defaultextension=".xlsx", initialfile="comments.xlsx", filetypes=[("Excel file", "*.xlsx")])
+    # Kiểm tra xem người dùng đã chọn một file hay không
+    if file_path:
+        # Viết nội dung vào file đã chọn
+        try:
+            wb_comment.save(os.path.join(file_path))
+            print("Đã lưu file thành công!")
+        except Exception as e:
+            print("Đã xảy ra lỗi:", e)
 
-loadCookiesFile(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cookies.xlsx'))
-crawlAndSave(cookies_object_list)
+loadCookiesFile()
+if (cookies_object_list):
+    crawlAndSave(cookies_object_list)
